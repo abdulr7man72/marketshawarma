@@ -105,6 +105,7 @@
 
       <section class="rounded-2xl border border-orange-100 bg-white p-4 shadow-sm md:p-5">
         <form method="get" action="/invoices-orders" class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <input type="hidden" name="tab" value="invoices" />
           <input
             name="q"
             value="<%= viewFilters.q %>"
@@ -207,42 +208,54 @@
       <div id="products-tab" class="tab-pane space-y-6">
       
       <section class="rounded-2xl border border-orange-100 bg-white p-4 shadow-sm md:p-5">
-        <h2 class="mb-4 text-lg font-bold">Products Catalog</h2>
+        <h2 class="mb-4 text-lg font-bold">Products Sales Report</h2>
+        <form method="get" action="/invoices-orders" class="grid gap-3 md:grid-cols-3 xl:grid-cols-5 mb-4">
+          <input type="hidden" name="tab" value="products" />
+          
+          <input
+            name="q"
+            value="<%= viewFilters.q %>"
+            type="search"
+            placeholder="Search product name..."
+            class="rounded-xl border border-orange-200 px-4 py-3 text-sm outline-none ring-orange-200 focus:ring"
+          />
+
+          <input name="from" value="<%= viewFilters.from %>" type="date" class="rounded-xl border border-orange-200 px-4 py-3 text-sm" />
+          <input name="to" value="<%= viewFilters.to %>" type="date" class="rounded-xl border border-orange-200 px-4 py-3 text-sm" />
+
+          <div class="flex gap-2">
+            <button class="w-full rounded-xl bg-brand-500 px-4 py-3 text-sm font-bold text-white hover:bg-brand-600">Apply</button>
+            <a href="/invoices-orders?tab=products" class="w-full rounded-xl border border-orange-200 px-4 py-3 text-center text-sm font-semibold hover:bg-orange-50">Reset</a>
+          </div>
+        </form>
+      </section>
+
+      <section class="rounded-2xl border border-orange-100 bg-white p-4 shadow-sm md:p-5">
         <div class="overflow-auto rounded-xl border border-orange-100">
           <table class="w-full min-w-[700px] text-sm">
             <thead class="bg-orange-50">
               <tr>
                 <th class="p-3 text-left">Product Name</th>
-                <th class="p-3 text-left">Price</th>
-                <th class="p-3 text-left">Quantity</th>
-                <th class="p-3 text-left">Image</th>
-                <th class="p-3 text-left">Added Date</th>
+                <th class="p-3 text-left">Total Quantity</th>
+                <th class="p-3 text-left">Total Amount</th>
               </tr>
             </thead>
             <tbody>
               <% if (viewProducts.length === 0) { %>
               <tr>
-                <td colspan="5" class="p-4 text-center text-zinc-500">No products available.</td>
+                <td colspan="3" class="p-4 text-center text-zinc-500">No products sold in this period.</td>
               </tr>
               <% } %>
               
               <% viewProducts.forEach((product) => { %>
               <tr class="border-t border-orange-100">
                 <td class="p-3 font-semibold"><%= product.name %></td>
-                <td class="p-3 font-bold text-brand-600"><%= formatRP(product.price) %></td>
-                <td class="p-3 font-semibold <%= product.quantity > 0 ? 'text-emerald-600' : 'text-red-600' %>">
-                  <span class="rounded-lg <%= product.quantity > 0 ? 'bg-emerald-100' : 'bg-red-100' %> px-2 py-1 text-xs font-bold">
-                    <%= product.quantity %> units
+                <td class="p-3 font-semibold text-blue-600">
+                  <span class="rounded-lg bg-blue-100 px-2 py-1 text-xs font-bold">
+                    <%= product.totalQuantity %> units
                   </span>
                 </td>
-                <td class="p-3">
-                  <% if (product.image) { %>
-                    <img src="<%= product.image %>" alt="<%= product.name %>" class="h-12 w-12 rounded-lg object-cover" />
-                  <% } else { %>
-                    <span class="text-xs text-zinc-500">No image</span>
-                  <% } %>
-                </td>
-                <td class="p-3"><%= new Date(product.createdAt).toLocaleString('en-US') %></td>
+                <td class="p-3 font-bold text-brand-600"><%= formatRP(product.totalAmount) %></td>
               </tr>
               <% }) %>
             </tbody>
@@ -254,6 +267,24 @@
 
     <script src="/pwa-install.js"></script>
     <script>
+      // Check for tab parameter in URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const tabParam = urlParams.get('tab');
+      if (tabParam) {
+        const targetTab = document.getElementById(tabParam + '-tab');
+        if (targetTab) {
+          document.querySelectorAll('.tab-pane').forEach((pane) => {
+            pane.classList.remove('active');
+          });
+          document.querySelectorAll('.tab-button').forEach((btn) => {
+            btn.classList.remove('active');
+          });
+          targetTab.classList.add('active');
+          const button = document.querySelector(`[data-tab="${tabParam}-tab"]`);
+          if (button) button.classList.add('active');
+        }
+      }
+
       // Tab switching functionality
       document.querySelectorAll('.tab-button').forEach((button) => {
         button.addEventListener('click', () => {

@@ -85,8 +85,22 @@ app.get("/invoices-orders", requireAuth, async (req, res) => {
   const status = ["all", "pending", "completed"].includes(req.query.status)
     ? req.query.status
     : "all";
-  const from = (req.query.from || "").trim();
-  const to = (req.query.to || "").trim();
+  
+  // Set default date range to current month
+  const now = new Date();
+  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  
+  let from = (req.query.from || "").trim();
+  let to = (req.query.to || "").trim();
+  
+  // Default to current month if no dates provided
+  if (!from) {
+    from = firstDayOfMonth.toISOString().split('T')[0];
+  }
+  if (!to) {
+    to = lastDayOfMonth.toISOString().split('T')[0];
+  }
 
   const match = {};
   if (!req.session.user.isAdmin) {
@@ -150,8 +164,25 @@ app.get("/invoices-orders", requireAuth, async (req, res) => {
     }
   );
 
-  // Fetch products
-  const products = await Product.find().sort({ createdAt: -1 }).lean();
+  // Calculate products sales summary
+  const productSales = new Map();
+  orders.forEach((order) => {
+    order.items.forEach((item) => {
+      if (!productSales.has(item.productId.toString())) {
+        productSales.set(item.productId.toString(), {
+          productId: item.productId,
+          name: item.name,
+          totalQuantity: 0,
+          totalAmount: 0,
+        });
+      }
+      const sale = productSales.get(item.productId.toString());
+      sale.totalQuantity += item.quantity;
+      sale.totalAmount += item.subtotal;
+    });
+  });
+
+  const products = Array.from(productSales.values()).sort((a, b) => b.totalAmount - a.totalAmount);
 
   res.render("invoices-orders", {
     user: req.session.user,
