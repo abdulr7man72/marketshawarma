@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#ea580c" />
+    <meta name="description" content="View and manage your invoices and orders" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/app-icon.svg" />
+    <title>Invoices & Orders</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                50: "#fff7ed",
+                100: "#ffedd5",
+                500: "#f97316",
+                600: "#ea580c"
+              }
+            }
+          }
+        }
+      };
+    </script>
+    <style>
+      .tab-button {
+        @apply px-4 py-3 text-sm font-semibold border-b-2 border-transparent transition-colors;
+      }
+      .tab-button.active {
+        @apply border-brand-500 text-brand-600;
+      }
+      .tab-button:hover {
+        @apply text-brand-600;
+      }
+      .tab-pane {
+        display: none;
+      }
+      .tab-pane.active {
+        display: block;
+      }
+    </style>
+  </head>
+  <body class="bg-gradient-to-b from-white to-brand-50 text-zinc-800">
+    <% const formatRP = (n) => `RP ${Number(n || 0).toLocaleString('en-US')}`; %>
+    <% const viewUser = user || { isAdmin: false, name: "" }; %>
+    <% const viewOrders = Array.isArray(orders) ? orders : []; %>
+    <% const viewProducts = Array.isArray(products) ? products : []; %>
+    <% const viewSummary = summary || { ordersCount: 0, itemsCount: 0, totalAmount: 0, pendingCount: 0, completedCount: 0 }; %>
+    <% const viewFilters = filters || { q: "", status: "all", from: "", to: "" }; %>
+
+    <header class="border-b border-orange-100 bg-white/95 backdrop-blur">
+      <div class="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-4 md:px-6">
+        <div>
+          <h1 class="text-2xl font-extrabold text-brand-600">Invoices & Orders</h1>
+          <p class="text-sm text-zinc-500">
+            <%= viewUser.isAdmin ? 'All customers orders view' : 'Your order history and invoice details' %>
+          </p>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <button id="installPwaBtn" type="button" class="hidden rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700">📥 Install App</button>
+          <button id="downloadAllBtn" type="button" class="rounded-xl bg-green-600 px-4 py-3 text-sm font-semibold text-white hover:bg-green-700">📊 Export CSV</button>
+          <a href="/" class="rounded-xl border border-orange-200 px-4 py-3 text-sm font-semibold hover:bg-orange-50">Back to Store</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="mx-auto max-w-7xl space-y-6 px-4 py-6 md:px-6">
+      <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <article class="rounded-2xl border border-orange-100 bg-white p-4 shadow-sm">
+          <p class="text-xs text-zinc-500">Orders</p>
+          <p class="mt-1 text-2xl font-extrabold text-zinc-900"><%= viewSummary.ordersCount %></p>
+        </article>
+        <article class="rounded-2xl border border-orange-100 bg-white p-4 shadow-sm">
+          <p class="text-xs text-zinc-500">Items Qty</p>
+          <p class="mt-1 text-2xl font-extrabold text-zinc-900"><%= viewSummary.itemsCount %></p>
+        </article>
+        <article class="rounded-2xl border border-orange-100 bg-white p-4 shadow-sm">
+          <p class="text-xs text-zinc-500">Total Amount</p>
+          <p class="mt-1 text-2xl font-extrabold text-brand-600"><%= formatRP(viewSummary.totalAmount) %></p>
+        </article>
+        <article class="rounded-2xl border border-amber-200 bg-amber-50/40 p-4 shadow-sm">
+          <p class="text-xs text-amber-700">Pending</p>
+          <p class="mt-1 text-2xl font-extrabold text-amber-700"><%= viewSummary.pendingCount %></p>
+        </article>
+        <article class="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 shadow-sm">
+          <p class="text-xs text-emerald-700">Completed</p>
+          <p class="mt-1 text-2xl font-extrabold text-emerald-700"><%= viewSummary.completedCount %></p>
+        </article>
+      </section>
+
+      <!-- Tabs Navigation -->
+      <div class="rounded-2xl border border-orange-100 bg-white p-4 shadow-sm md:p-5">
+        <div class="flex gap-2 border-b border-orange-100">
+          <button class="tab-button active" data-tab="invoices-tab">📋 Invoices & Orders</button>
+          <button class="tab-button" data-tab="products-tab">📦 Products Catalog</button>
+        </div>
+      </div>
+
+      <!-- Invoices Tab -->
+      <div id="invoices-tab" class="tab-pane active space-y-6">
+
+      <section class="rounded-2xl border border-orange-100 bg-white p-4 shadow-sm md:p-5">
+        <form method="get" action="/invoices-orders" class="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <input
+            name="q"
+            value="<%= viewFilters.q %>"
+            type="search"
+            placeholder="Search invoice, customer, product..."
+            class="rounded-xl border border-orange-200 px-4 py-3 text-sm outline-none ring-orange-200 focus:ring"
+          />
+
+          <select name="status" class="rounded-xl border border-orange-200 bg-white px-4 py-3 text-sm outline-none ring-orange-200 focus:ring">
+            <option value="all" <%= viewFilters.status === 'all' ? 'selected' : '' %>>All statuses</option>
+            <option value="pending" <%= viewFilters.status === 'pending' ? 'selected' : '' %>>Pending</option>
+            <option value="completed" <%= viewFilters.status === 'completed' ? 'selected' : '' %>>Completed</option>
+          </select>
+
+          <input name="from" value="<%= viewFilters.from %>" type="date" class="rounded-xl border border-orange-200 px-4 py-3 text-sm" />
+          <input name="to" value="<%= viewFilters.to %>" type="date" class="rounded-xl border border-orange-200 px-4 py-3 text-sm" />
+
+          <div class="flex gap-2">
+            <button class="w-full rounded-xl bg-brand-500 px-4 py-3 text-sm font-bold text-white hover:bg-brand-600">Apply</button>
+            <a href="/invoices-orders" class="w-full rounded-xl border border-orange-200 px-4 py-3 text-center text-sm font-semibold hover:bg-orange-50">Reset</a>
+          </div>
+        </form>
+      </section>
+
+      <section class="rounded-2xl border border-orange-100 bg-white p-4 shadow-sm md:p-5">
+        <div class="overflow-auto rounded-xl border border-orange-100">
+          <table class="w-full min-w-[920px] text-sm">
+            <thead class="bg-orange-50">
+              <tr>
+                <th class="p-3 text-left">Invoice</th>
+                <th class="p-3 text-left">Customer</th>
+                <th class="p-3 text-left">Date</th>
+                <th class="p-3 text-left">Status</th>
+                <th class="p-3 text-left">Items</th>
+                <th class="p-3 text-left">Total</th>
+                <th class="p-3 text-left">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% if (viewOrders.length === 0) { %>
+              <tr>
+                <td colspan="7" class="p-4 text-center text-zinc-500">No matching orders found.</td>
+              </tr>
+              <% } %>
+
+              <% viewOrders.forEach((order) => { %>
+              <tr class="border-t border-orange-100 align-top">
+                <td class="p-3 font-semibold"><%= order.invoiceNumber %></td>
+                <td class="p-3"><%= order.customerName %></td>
+                <td class="p-3"><%= new Date(order.createdAt).toLocaleString('en-US') %></td>
+                <td class="p-3">
+                  <span class="rounded-lg px-2 py-1 text-xs font-bold <%= order.status === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700' %>">
+                    <%= order.status === 'completed' ? 'Completed' : 'Pending' %>
+                  </span>
+                </td>
+                <td class="p-3"><%= order.items.reduce((sum, item) => sum + item.quantity, 0) %></td>
+                <td class="p-3 font-bold text-brand-600"><%= formatRP(order.total) %></td>
+                <td class="p-3">
+                  <div class="flex flex-wrap gap-2">
+                    <a href="/invoices/<%= order.invoiceNumber %>" class="rounded-lg border border-orange-200 bg-white px-3 py-2 text-xs font-semibold text-brand-600">View Invoice</a>
+                    <button type="button" class="toggle-items rounded-lg bg-orange-100 px-3 py-2 text-xs font-semibold text-orange-700" data-target="items-<%= order._id %>">Details</button>
+                    <button type="button" class="download-invoice rounded-lg bg-green-100 px-3 py-2 text-xs font-semibold text-green-700" data-invoice="<%= order.invoiceNumber %>" data-customer="<%= order.customerName %>">📥 Download</button>
+                  </div>
+                </td>
+              </tr>
+              <tr id="items-<%= order._id %>" class="hidden border-t border-orange-100 bg-orange-50/30">
+                <td colspan="7" class="p-3">
+                  <div class="overflow-auto rounded-lg border border-orange-100 bg-white">
+                    <table class="w-full text-xs md:text-sm">
+                      <thead class="bg-orange-50">
+                        <tr>
+                          <th class="p-2 text-left">Product</th>
+                          <th class="p-2 text-left">Unit Price</th>
+                          <th class="p-2 text-left">Qty</th>
+                          <th class="p-2 text-left">Subtotal</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <% order.items.forEach((item) => { %>
+                        <tr class="border-t border-orange-100">
+                          <td class="p-2"><%= item.name %></td>
+                          <td class="p-2"><%= formatRP(item.unitPrice) %></td>
+                          <td class="p-2"><%= item.quantity %></td>
+                          <td class="p-2"><%= formatRP(item.subtotal) %></td>
+                        </tr>
+                        <% }) %>
+                      </tbody>
+                    </table>
+                  </div>
+                </td>
+              </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      </section>
+      </div>
+
+      <!-- Products Tab -->
+      <div id="products-tab" class="tab-pane space-y-6">
+      
+      <section class="rounded-2xl border border-orange-100 bg-white p-4 shadow-sm md:p-5">
+        <h2 class="mb-4 text-lg font-bold">Products Catalog</h2>
+        <div class="overflow-auto rounded-xl border border-orange-100">
+          <table class="w-full min-w-[700px] text-sm">
+            <thead class="bg-orange-50">
+              <tr>
+                <th class="p-3 text-left">Product Name</th>
+                <th class="p-3 text-left">Price</th>
+                <th class="p-3 text-left">Quantity</th>
+                <th class="p-3 text-left">Image</th>
+                <th class="p-3 text-left">Added Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% if (viewProducts.length === 0) { %>
+              <tr>
+                <td colspan="5" class="p-4 text-center text-zinc-500">No products available.</td>
+              </tr>
+              <% } %>
+              
+              <% viewProducts.forEach((product) => { %>
+              <tr class="border-t border-orange-100">
+                <td class="p-3 font-semibold"><%= product.name %></td>
+                <td class="p-3 font-bold text-brand-600"><%= formatRP(product.price) %></td>
+                <td class="p-3 font-semibold <%= product.quantity > 0 ? 'text-emerald-600' : 'text-red-600' %>">
+                  <span class="rounded-lg <%= product.quantity > 0 ? 'bg-emerald-100' : 'bg-red-100' %> px-2 py-1 text-xs font-bold">
+                    <%= product.quantity %> units
+                  </span>
+                </td>
+                <td class="p-3">
+                  <% if (product.image) { %>
+                    <img src="<%= product.image %>" alt="<%= product.name %>" class="h-12 w-12 rounded-lg object-cover" />
+                  <% } else { %>
+                    <span class="text-xs text-zinc-500">No image</span>
+                  <% } %>
+                </td>
+                <td class="p-3"><%= new Date(product.createdAt).toLocaleString('en-US') %></td>
+              </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      </section>
+      </div>
+    </main>
+
+    <script src="/pwa-install.js"></script>
+    <script>
+      // Tab switching functionality
+      document.querySelectorAll('.tab-button').forEach((button) => {
+        button.addEventListener('click', () => {
+          const tabName = button.dataset.tab;
+          
+          // Hide all tabs
+          document.querySelectorAll('.tab-pane').forEach((pane) => {
+            pane.classList.remove('active');
+          });
+          
+          // Deactivate all buttons
+          document.querySelectorAll('.tab-button').forEach((btn) => {
+            btn.classList.remove('active');
+          });
+          
+          // Show selected tab
+          const selectedTab = document.getElementById(tabName);
+          if (selectedTab) {
+            selectedTab.classList.add('active');
+          }
+          
+          // Activate button
+          button.classList.add('active');
+        });
+      });
+
+      // Toggle order details
+      document.querySelectorAll('.toggle-items').forEach((button) => {
+        button.addEventListener('click', () => {
+          const target = document.getElementById(button.dataset.target);
+          if (!target) return;
+          target.classList.toggle('hidden');
+        });
+      });
+
+      // Download invoice as PDF
+      document.querySelectorAll('.download-invoice').forEach((button) => {
+        button.addEventListener('click', async (e) => {
+          e.preventDefault();
+          const invoiceNumber = button.dataset.invoice;
+          const customerName = button.dataset.customer;
+          
+          try {
+            button.disabled = true;
+            button.innerText = '⏳ Downloading...';
+            
+            // Fetch invoice page
+            const response = await fetch(`/invoices/${invoiceNumber}`);
+            const html = await response.text();
+            
+            // Create element from HTML
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, 'text/html');
+            const element = doc.querySelector('main') || doc.body;
+            
+            // Generate PDF
+            const opt = {
+              margin: 10,
+              filename: `invoice-${invoiceNumber}.pdf`,
+              image: { type: 'jpeg', quality: 0.98 },
+              html2canvas: { scale: 2 },
+              jsPDF: { orientation: 'portrait', unit: 'mm', format: 'a4' }
+            };
+            
+            html2pdf().set(opt).from(element).save().then(() => {
+              button.disabled = false;
+              button.innerText = '📥 Download';
+              
+              // Show notification
+              if (window.PWAInstall && window.PWAInstall.notify) {
+                window.PWAInstall.notify(`Invoice ${invoiceNumber} downloaded successfully!`);
+              }
+            });
+          } catch (error) {
+            console.error('Download error:', error);
+            button.disabled = false;
+            button.innerText = '❌ Error';
+            setTimeout(() => {
+              button.innerText = '📥 Download';
+            }, 2000);
+          }
+        });
+      });
+
+      // Export all visible orders to CSV
+      document.getElementById('downloadAllBtn').addEventListener('click', () => {
+        const rows = document.querySelectorAll('table tbody tr:not([id])');
+        let csv = 'Invoice,Customer,Date,Status,Items,Total\n';
+        
+        rows.forEach((row) => {
+          const cells = row.querySelectorAll('td');
+          if (cells.length >= 6) {
+            const invoice = cells[0].textContent.trim();
+            const customer = cells[1].textContent.trim();
+            const date = cells[2].textContent.trim();
+            const status = cells[3].textContent.trim();
+            const items = cells[4].textContent.trim();
+            const total = cells[5].textContent.trim();
+            
+            csv += `"${invoice}","${customer}","${date}","${status}","${items}","${total}"\n`;
+          }
+        });
+        
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', `invoices-${new Date().toISOString().split('T')[0]}.csv`);
+        link.click();
+        URL.revokeObjectURL(url);
+      });
+
+      if (window.PWAInstall) {
+        window.PWAInstall.bindInstallButton('#installPwaBtn');
+      }
+    </script>
+  </body>
+</html>
