@@ -48,6 +48,7 @@
     <% const formatRP = (n) => `RP ${Number(n || 0).toLocaleString('en-US')}`; %>
     <% const viewUser = user || { isAdmin: false, name: "" }; %>
     <% const viewOrders = Array.isArray(orders) ? orders : []; %>
+    <% const purchasedProducts = viewOrders.flatMap((order) => (Array.isArray(order.items) ? order.items : [])); %>
     <% const viewProducts = Array.isArray(products) ? products : []; %>
     <% const viewSummary = summary || { ordersCount: 0, itemsCount: 0, totalAmount: 0, pendingCount: 0, completedCount: 0 }; %>
     <% const viewFilters = filters || { q: "", status: "all", from: "", to: "" }; %>
@@ -95,8 +96,9 @@
       <!-- Tabs Navigation -->
       <div class="rounded-2xl border border-orange-100 bg-white p-4 shadow-sm md:p-5">
         <div class="flex gap-2 border-b border-orange-100">
-          <button class="tab-button active" data-tab="invoices-tab">📋 Invoices & Orders</button>
-          <button class="tab-button" data-tab="products-tab">📦 Products Catalog</button>
+          <button class="tab-button active" data-tab="invoices-tab">&#128203; Invoices & Orders</button>
+          <button class="tab-button" data-tab="purchased-tab">&#129534; Purchased Products</button>
+          <button class="tab-button" data-tab="products-tab">&#128230; Products Catalog</button>
         </div>
       </div>
 
@@ -196,6 +198,41 @@
                     </table>
                   </div>
                 </td>
+              </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      </section>
+      </div>
+
+      <!-- Purchased Products Tab -->
+      <div id="purchased-tab" class="tab-pane space-y-6">
+      <section class="rounded-2xl border border-orange-100 bg-white p-4 shadow-sm md:p-5">
+        <h2 class="mb-4 text-lg font-bold">Purchased Products</h2>
+        <div class="overflow-auto rounded-xl border border-orange-100">
+          <table class="w-full min-w-[700px] text-sm">
+            <thead class="bg-orange-50">
+              <tr>
+                <th class="p-3 text-left">Product</th>
+                <th class="p-3 text-left">Unit Price</th>
+                <th class="p-3 text-left">Qty</th>
+                <th class="p-3 text-left">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% if (purchasedProducts.length === 0) { %>
+              <tr>
+                <td colspan="4" class="p-4 text-center text-zinc-500">No purchased products yet.</td>
+              </tr>
+              <% } %>
+
+              <% purchasedProducts.forEach((item) => { %>
+              <tr class="border-t border-orange-100">
+                <td class="p-3"><%= item.name %></td>
+                <td class="p-3"><%= formatRP(item.unitPrice) %></td>
+                <td class="p-3"><%= item.quantity %></td>
+                <td class="p-3 font-semibold text-brand-600"><%= formatRP(item.subtotal) %></td>
               </tr>
               <% }) %>
             </tbody>
@@ -403,3 +440,4 @@
     </script>
   </body>
 </html>
+
