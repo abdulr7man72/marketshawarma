@@ -24,167 +24,293 @@
       };
     </script>
   </head>
-  <body class="bg-gradient-to-b from-white to-brand-50 text-zinc-800">
+  <body class="bg-white text-zinc-800">
     <% const formatRP = (n) => `RP ${Number(n || 0).toLocaleString('en-US')}`; %>
 
-    <header class="sticky top-0 z-20 border-b border-orange-100 bg-white/95 backdrop-blur">
-      <div class="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-4 md:px-6 md:py-5">
-        <div>
-          <h1 class="text-2xl font-extrabold text-brand-600">Online Store</h1>
-          <p class="text-sm text-zinc-500">Welcome, <span class="font-bold"><%= user.name %></span></p>
+    <!-- Header -->
+    <header class="sticky top-0 z-30 border-b border-zinc-200 bg-white/98 backdrop-blur">
+      <div class="mx-auto flex w-full items-center justify-between gap-4 px-4 py-3 md:px-6 md:py-4">
+        <div class="flex items-center gap-3">
+          <div class="rounded-lg bg-brand-500 px-3 py-2 text-white font-bold text-lg">🍜</div>
+          <div>
+            <h1 class="text-xl font-extrabold text-zinc-900">Market Shawarma</h1>
+            <p class="text-xs text-zinc-500">Welcome back, <%= user.name %></p>
+          </div>
         </div>
         <div class="flex items-center gap-2">
-          <button id="installPwaBtn" type="button" class="hidden rounded-xl bg-brand-500 px-4 py-3 text-sm font-semibold text-white hover:bg-brand-600">
-            Install App
+          <button id="installPwaBtn" type="button" class="hidden rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700">
+            📥 Install
           </button>
-          <a href="/invoices-orders" class="rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700">📋 My Invoices</a>
+          <a href="/invoices-orders" class="rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-xs font-semibold text-brand-600 hover:bg-brand-100">📋 Orders</a>
           <% if (user.isAdmin) { %>
-          <a href="/admin" class="rounded-xl border border-orange-200 px-4 py-3 text-sm font-semibold hover:bg-orange-50">Admin Panel</a>
+          <a href="/admin" class="rounded-lg border border-zinc-200 px-3 py-2 text-xs font-semibold hover:bg-zinc-100">⚙️ Admin</a>
           <% } %>
-          <form method="post" action="/logout">
-            <button class="rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white">Logout</button>
+          <form method="post" action="/logout" class="contents">
+            <button class="rounded-lg border border-zinc-200 px-3 py-2 text-xs font-semibold hover:bg-zinc-100">🚪 Exit</button>
           </form>
         </div>
       </div>
     </header>
 
-    <main class="mx-auto grid max-w-7xl gap-6 px-4 py-6 md:px-6 lg:grid-cols-12">
-      <section class="space-y-4 lg:col-span-8 xl:col-span-9">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <h2 class="text-xl font-bold">Products</h2>
-          <input
-            id="productSearch"
-            type="search"
-            placeholder="Search products..."
-            class="w-full rounded-xl border border-orange-200 bg-white px-4 py-3 text-base outline-none ring-orange-200 transition focus:ring sm:w-80"
-            oninput="filterProducts()"
-          />
-        </div>
-
-        <div id="productsGrid" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          <% if (products.length === 0) { %>
-          <div class="col-span-full rounded-2xl border border-dashed border-orange-200 bg-white p-8 text-center text-zinc-500">No products available yet.</div>
-          <% } %>
-
-          <% products.forEach((product) => { %>
-          <article class="product-card rounded-2xl border border-orange-100 bg-white p-3 shadow-sm" data-name="<%= product.name.toLowerCase() %>">
-            <img src="<%= product.image || '/default-product.svg' %>" alt="<%= product.name %>" class="h-48 w-full rounded-xl object-cover" />
-            <div class="mt-3 space-y-3">
-              <h3 class="text-lg font-bold"><%= product.name %></h3>
-              <p class="text-lg font-extrabold text-brand-600"><%= formatRP(product.price) %></p>
-              <div class="flex items-center justify-between gap-2">
-                <input
-                  id="qty-<%= product._id %>"
-                  type="number"
-                  min="0"
-                  value="0"
-                  class="w-24 rounded-xl border border-orange-200 px-3 py-3 text-center text-base"
-                />
-                <button
-                  type="button"
-                  onclick="addToCart('<%= product._id %>', '<%- product.name.replace(/'/g, "\\'") %>', <%= product.price %>)"
-                  class="rounded-xl bg-brand-500 px-4 py-3 text-sm font-bold text-white hover:bg-brand-600"
-                >
-                  Add to Cart
-                </button>
-              </div>
+    <!-- Main Layout -->
+    <main class="flex h-screen flex-col overflow-hidden">
+      <!-- Products & Cart Grid -->
+      <div class="flex flex-1 gap-0 overflow-hidden">
+        <!-- Products Section -->
+        <section class="flex-1 overflow-y-auto bg-zinc-50">
+          <div class="grid gap-3 p-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 md:p-6">
+            <% if (products.length === 0) { %>
+            <div class="col-span-full rounded-lg border-2 border-dashed border-zinc-300 bg-white p-8 text-center text-zinc-500">
+              <p class="text-sm">📦 No products available yet</p>
             </div>
-          </article>
-          <% }) %>
-        </div>
-      </section>
-
-      <aside class="space-y-4 lg:col-span-4 xl:col-span-3">
-        <section class="rounded-2xl border border-orange-100 bg-white p-4 shadow-sm md:p-5">
-          <h2 class="text-xl font-bold">Cart</h2>
-          <div id="cartItems" class="mt-3 space-y-2 text-sm"></div>
-          <div class="mt-3 border-t border-orange-100 pt-3">
-            <p class="text-base font-bold">Total: <span id="cartTotal">RP 0</span></p>
-          </div>
-          <button onclick="submitOrder()" class="mt-4 w-full rounded-xl bg-brand-500 px-4 py-4 text-base font-bold text-white hover:bg-brand-600">
-            Place Order
-          </button>
-        </section>
-
-        <section class="rounded-2xl border border-orange-100 bg-white p-4 shadow-sm md:p-5">
-          <div class="flex items-center justify-between gap-2">
-            <h2 class="text-xl font-bold">Invoices & Orders</h2>
-            <a href="/invoices-orders" class="rounded-lg border border-orange-200 px-3 py-2 text-xs font-semibold text-brand-600 hover:bg-orange-50">Open Details</a>
-          </div>
-          <div class="mt-3 space-y-2 text-sm">
-            <% if (userOrders.length === 0) { %>
-            <p class="text-zinc-500">No orders yet.</p>
             <% } %>
-            <% userOrders.forEach((order) => { %>
-            <div class="rounded-xl border border-orange-100 bg-orange-50/40 p-3">
-              <p class="font-semibold">Invoice: <%= order.invoiceNumber %></p>
-              <p>Status: <span class="font-bold <%= order.status === 'completed' ? 'text-emerald-600' : 'text-amber-600' %>"><%= order.status === "completed" ? "Completed" : "Pending" %></span></p>
-              <p>Total: <%= formatRP(order.total) %></p>
-              <a href="/invoices/<%= order.invoiceNumber %>" class="mt-2 inline-block text-sm font-semibold text-brand-600 hover:underline">View / Print Invoice</a>
-            </div>
+
+            <% products.forEach((product) => { %>
+            <article class="product-card group overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm transition hover:shadow-md cursor-pointer" data-product-id="<%= product._id %>" data-product-name="<%= product.name %>" data-product-image="<%= product.image %>" data-product-price="<%= product.price %>">
+              <div class="relative h-40 overflow-hidden bg-zinc-100" onclick="openProductModal(this.parentElement.dataset.productId, this.parentElement.dataset.productName, this.parentElement.dataset.productImage, parseFloat(this.parentElement.dataset.productPrice))">
+                <img src="<%= product.image || '/default-product.svg' %>" alt="<%= product.name %>" class="h-full w-full object-cover transition group-hover:scale-105" />
+              </div>
+              <div class="p-3" onclick="openProductModal(this.parentElement.dataset.productId, this.parentElement.dataset.productName, this.parentElement.dataset.productImage, parseFloat(this.parentElement.dataset.productPrice))">
+                <h3 class="text-sm font-bold text-zinc-900 line-clamp-2"><%= product.name %></h3>
+                <p class="mt-2 text-base font-extrabold text-brand-600"><%= formatRP(product.price) %></p>
+              </div>
+            </article>
             <% }) %>
           </div>
         </section>
-      </aside>
+
+        <!-- Cart Sidebar -->
+        <aside class="w-80 flex-shrink-0 border-l border-zinc-200 bg-white p-4 md:p-6 flex flex-col overflow-hidden">
+          <div class="mb-4">
+            <h2 class="text-lg font-bold text-zinc-900">🛒 Order Cart</h2>
+            <p class="text-xs text-zinc-500">Add items to get started</p>
+          </div>
+
+          <!-- Cart Items -->
+          <div id="cartItems" class="flex-1 space-y-2 overflow-y-auto pr-2"></div>
+
+          <!-- Cart Summary -->
+          <div class="mt-4 space-y-3 border-t border-zinc-200 pt-3">
+            <div class="flex items-center justify-between text-sm">
+              <span class="text-zinc-600">Subtotal:</span>
+              <span class="font-semibold text-zinc-900" id="cartSubtotal">RP 0</span>
+            </div>
+            <div class="flex items-center justify-between text-sm">
+              <span class="text-zinc-600">Tax (0%):</span>
+              <span class="font-semibold text-zinc-900" id="cartTax">RP 0</span>
+            </div>
+            <div class="flex items-center justify-between border-t border-zinc-200 pt-3 text-base">
+              <span class="font-bold text-zinc-900">Total:</span>
+              <span class="font-bold text-brand-600 text-lg" id="cartTotal">RP 0</span>
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="mt-4 space-y-2 pt-3">
+            <button onclick="submitOrder()" class="w-full rounded-lg bg-brand-500 px-4 py-3 text-sm font-bold text-white transition hover:bg-brand-600 active:scale-95">
+              ✅ Proceed to Order
+            </button>
+            <button onclick="clearCart()" class="w-full rounded-lg border border-zinc-200 px-4 py-3 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100">
+              🔄 Clear Cart
+            </button>
+          </div>
+
+          <!-- Recent Orders Preview -->
+          <div class="mt-6 border-t border-zinc-200 pt-4">
+            <h3 class="mb-3 text-sm font-bold text-zinc-900">📋 Recent Orders</h3>
+            <div class="space-y-2 max-h-40 overflow-y-auto">
+              <% if (userOrders.length === 0) { %>
+              <p class="text-xs text-zinc-500">No orders yet</p>
+              <% } %>
+              <% userOrders.slice(0, 3).forEach((order) => { %>
+              <a href="/invoices/<%= order.invoiceNumber %>" class="block rounded-lg border border-zinc-200 bg-zinc-50 p-2 text-xs transition hover:bg-zinc-100">
+                <div class="flex items-center justify-between">
+                  <span class="font-semibold text-zinc-900"><%= order.invoiceNumber %></span>
+                  <span class="rounded-full px-2 py-1 text-xs font-bold <%= order.status === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700' %>">
+                    <%= order.status === "completed" ? "✅" : "⏳" %>
+                  </span>
+                </div>
+                <p class="text-zinc-600"><%= formatRP(order.total) %></p>
+              </a>
+              <% }) %>
+            </div>
+          </div>
+        </aside>
+      </div>
     </main>
 
-    <% if (success) { %>
-    <div class="fixed bottom-4 left-1/2 z-30 -translate-x-1/2 rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white"><%= success %></div>
-    <% } %>
+    <!-- Product Modal -->
+    <div id="productModal" class="fixed inset-0 z-50 hidden bg-black/50 flex items-center justify-center p-4" onclick="if(event.target.id === 'productModal') closeProductModal()">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+        <!-- Product Image -->
+        <div class="relative h-64 bg-zinc-100 overflow-hidden">
+          <img id="modalImage" src="" alt="" class="h-full w-full object-cover" />
+          <button onclick="closeProductModal()" class="absolute top-3 right-3 bg-white/90 hover:bg-white rounded-full p-2 shadow-md">
+            ✕
+          </button>
+        </div>
+        
+        <!-- Product Details -->
+        <div class="p-6 space-y-4">
+          <h2 id="modalName" class="text-2xl font-bold text-zinc-900"></h2>
+          
+          <!-- Price Info -->
+          <div class="bg-brand-50 rounded-lg p-4 space-y-2">
+            <div class="flex justify-between items-center">
+              <span class="text-zinc-600">Unit Price:</span>
+              <span id="unitPrice" class="text-lg font-bold text-brand-600"></span>
+            </div>
+            <div class="border-t border-brand-200 pt-2 flex justify-between items-center">
+              <span class="text-zinc-900 font-semibold">Total Price:</span>
+              <span id="totalPrice" class="text-2xl font-extrabold text-brand-600"></span>
+            </div>
+          </div>
+          
+          <!-- Quantity Controls -->
+          <div class="bg-zinc-50 rounded-lg p-4">
+            <p class="text-sm text-zinc-600 mb-3 font-semibold">Quantity:</p>
+            <div class="flex items-center justify-between gap-3">
+              <button onclick="decreaseModalQty()" class="flex-1 rounded-lg border-2 border-brand-600 bg-white text-brand-600 py-3 text-2xl font-bold hover:bg-brand-50 transition">
+                −
+              </button>
+              <span id="modalQty" class="flex-1 text-center text-2xl font-bold text-zinc-900 bg-white rounded-lg py-3">1</span>
+              <button onclick="increaseModalQty()" class="flex-1 rounded-lg border-2 border-brand-600 bg-white text-brand-600 py-3 text-2xl font-bold hover:bg-brand-50 transition">
+                +
+              </button>
+            </div>
+          </div>
+          
+          <!-- Action Buttons -->
+          <div class="flex gap-3 pt-2">
+            <button onclick="closeProductModal()" class="flex-1 rounded-lg border border-zinc-300 px-4 py-3 font-semibold text-zinc-700 hover:bg-zinc-100 transition">
+              Cancel
+            </button>
+            <button onclick="addFromModal()" class="flex-1 rounded-lg bg-brand-500 px-4 py-3 font-bold text-white hover:bg-brand-600 transition">
+              Add to Cart
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <script>
       const cart = new Map();
+      let modalData = { productId: null, productName: null, productImage: null, productPrice: null, quantity: 1 };
 
       function formatRP(value) {
         return `RP ${Number(value || 0).toLocaleString("en-US")}`;
       }
 
-      function addToCart(id, name, price) {
-        const qtyInput = document.getElementById(`qty-${id}`);
-        const qty = Number(qtyInput.value);
-        if (!qty || qty <= 0) return;
+      // Modal Functions
+      function openProductModal(id, name, image, price) {
+        modalData = { productId: id, productName: name, productImage: image, productPrice: price, quantity: 1 };
+        document.getElementById('modalImage').src = image;
+        document.getElementById('modalName').textContent = name;
+        document.getElementById('unitPrice').textContent = formatRP(price);
+        document.getElementById('modalQty').textContent = '1';
+        updateModalTotal();
+        document.getElementById('productModal').classList.remove('hidden');
+      }
 
-        const existing = cart.get(id);
-        if (existing) {
-          existing.quantity += qty;
-        } else {
-          cart.set(id, { productId: id, name, price, quantity: qty });
+      function closeProductModal() {
+        document.getElementById('productModal').classList.add('hidden');
+        modalData.quantity = 1;
+      }
+
+      function increaseModalQty() {
+        modalData.quantity++;
+        document.getElementById('modalQty').textContent = modalData.quantity;
+        updateModalTotal();
+      }
+
+      function decreaseModalQty() {
+        if (modalData.quantity > 1) {
+          modalData.quantity--;
+          document.getElementById('modalQty').textContent = modalData.quantity;
+          updateModalTotal();
         }
+      }
 
-        qtyInput.value = 0;
+      function updateModalTotal() {
+        const total = modalData.productPrice * modalData.quantity;
+        document.getElementById('totalPrice').textContent = formatRP(total);
+      }
+
+      function addFromModal() {
+        const { productId, productName, productPrice, quantity } = modalData;
+        const existing = cart.get(productId);
+        if (existing) {
+          existing.quantity += quantity;
+        } else {
+          cart.set(productId, { productId, name: productName, price: productPrice, quantity });
+        }
         renderCart();
+        closeProductModal();
+      }
+
+      function toggleQuantity(id, name, price, btn) {
+        // Legacy function - not used
+      }
+
+      function increaseQty(id) {
+        // Legacy function - not used
+      }
+
+      function decreaseQty(id) {
+        // Legacy function - not used
+      }
+
+      function addToCart(id, name, price) {
+        // Legacy function - not used
       }
 
       function renderCart() {
         const container = document.getElementById("cartItems");
+        const subtotalEl = document.getElementById("cartSubtotal");
+        const taxEl = document.getElementById("cartTax");
         const totalEl = document.getElementById("cartTotal");
         container.innerHTML = "";
-        let total = 0;
+        let subtotal = 0;
 
         for (const item of cart.values()) {
+          const subtotalItem = item.price * item.quantity;
           const row = document.createElement("div");
-          row.className = "flex items-center justify-between rounded-lg border border-orange-100 bg-orange-50/40 px-3 py-3";
+          row.className = "flex items-center justify-between rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2";
           row.innerHTML = `
-            <div>
-              <p class="font-semibold">${item.name}</p>
-              <p class="text-xs text-zinc-500">${item.quantity} x ${formatRP(item.price)}</p>
+            <div class="flex-1">
+              <p class="text-xs font-semibold text-zinc-900">${item.name}</p>
+              <p class="text-xs text-zinc-600">${item.quantity} × ${formatRP(item.price)}</p>
             </div>
-            <button type="button" class="rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-600" onclick="removeFromCart('${item.productId}')">Remove</button>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold text-brand-600">${formatRP(subtotalItem)}</span>
+              <button type="button" class="rounded-md bg-red-50 px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-100" onclick="removeFromCart('${item.productId}')">✕</button>
+            </div>
           `;
           container.appendChild(row);
-          total += item.price * item.quantity;
+          subtotal += subtotalItem;
         }
 
         if (cart.size === 0) {
-          container.innerHTML = `<p class="text-zinc-500">Cart is empty.</p>`;
+          container.innerHTML = `<p class="text-xs text-zinc-500 text-center py-8">Your cart is empty</p>`;
         }
 
+        const tax = 0;
+        const total = subtotal + tax;
+        subtotalEl.textContent = formatRP(subtotal);
+        taxEl.textContent = formatRP(tax);
         totalEl.textContent = formatRP(total);
       }
 
       function removeFromCart(id) {
         cart.delete(id);
         renderCart();
+      }
+
+      function clearCart() {
+        if (confirm("Clear cart?")) {
+          cart.clear();
+          renderCart();
+        }
       }
 
       function submitOrder() {
@@ -207,14 +333,7 @@
         });
       }
 
-      function filterProducts() {
-        const query = document.getElementById("productSearch").value.trim().toLowerCase();
-        const cards = document.querySelectorAll(".product-card");
-        cards.forEach((card) => {
-          const name = card.dataset.name || "";
-          card.style.display = name.includes(query) ? "" : "none";
-        });
-      }
+
 
       renderCart();
     </script>
