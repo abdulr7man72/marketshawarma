@@ -82,7 +82,7 @@ app.get("/invoices/:invoiceNumber", requireAuth, async (req, res) => {
 
 app.get("/invoices-orders", requireAuth, async (req, res) => {
   const q = (req.query.q || "").trim();
-  const status = ["all", "pending", "completed"].includes(req.query.status)
+  const status = ["all", "pending", "process", "completed"].includes(req.query.status)
     ? req.query.status
     : "all";
   
@@ -260,6 +260,7 @@ app.post("/orders", requireAuth, async (req, res) => {
       unitPrice: product.price,
       quantity: qty,
       subtotal: product.price * qty,
+      itemStatus: "pending",
     });
     total += product.price * qty;
   }
@@ -283,7 +284,7 @@ app.post("/orders", requireAuth, async (req, res) => {
 });
 
 app.get("/admin", requireAuth, requireAdmin, async (req, res) => {
-  const tab = ["forms", "products", "invoices", "pending"].includes(req.query.tab)
+  const tab = ["forms", "products", "invoices", "pending", "process"].includes(req.query.tab)
     ? req.query.tab
     : "forms";
 
@@ -308,7 +309,7 @@ app.get("/admin", requireAuth, requireAdmin, async (req, res) => {
     }
   }
 
-  const pendingOrders = orders.filter((o) => o.status === "pending");
+  const pendingOrders = orders.filter((o) => o.status === "pending" || o.status === "process");
 
   res.render("admin", {
     user: req.session.user,
@@ -318,6 +319,7 @@ app.get("/admin", requireAuth, requireAdmin, async (req, res) => {
     purchasedRows,
     pendingOrders,
     error: null,
+    req,
   });
 });
 
@@ -397,7 +399,196 @@ app.post(
   requireAdmin,
   async (req, res) => {
     await Order.findByIdAndUpdate(req.params.id, { status: "completed" });
+    
+    // Check if request expects JSON
+    if (req.headers.accept && req.headers.accept.includes('application/json')) {
+      return res.json({ success: true });
+    }
+    
     res.redirect("/admin?tab=pending");
+  }
+);
+
+// Edit item quantity in order
+app.post(
+  "/admin/orders/:orderId/items/:itemIndex/quantity",
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    const newQuantity = Number(req.body.quantity);
+    if (isNaN(newQuantity) || newQuantity <= 0) {
+      return res.status(400).json({ error: "Invalid quantity" });
+    }
+
+    const order = await Order.findById(req.params.orderId);
+    if (!order) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    const itemIndex = Number(req.params.itemIndex);
+    if (itemIndex < 0 || itemIndex >= order.items.length) {
+      return res.status(400).json({ error: "Invalid item index" });
+    }
+
+    const item = order.items[itemIndex];
+    item.quantity = newQuantity;
+    item.subtotal = item.unitPrice * newQuantity;
+
+    let newTotal = 0;
+    for (const it of order.items) {
+      newTotal += it.subtotal;
+    }
+    order.total = newTotal;
+
+    await order.save();
+    res.json({ success: true, newQuantity, newSubtotal: item.subtotal, newTotal });
+  }
+);
+
+// Delete item from order
+app.post(
+  "/admin/orders/:orderId/items/:itemIndex/delete",
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    const order = await Order.findById(req.params.orderId);
+    if (!order) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    const itemIndex = Number(req.params.itemIndex);
+    if (itemIndex < 0 || itemIndex >= order.items.length) {
+      return res.status(400).json({ error: "Invalid item index" });
+    }
+
+    order.items.splice(itemIndex, 1);
+
+    let newTotal = 0;
+    for (const it of order.items) {
+      newTotal += it.subtotal;
+    }
+    order.total = newTotal;
+
+    if (order.items.length === 0) {
+      await Order.findByIdAndDelete(req.params.orderId);
+      return res.json({ success: true, deleted: true });
+    }
+
+    await order.save();
+    res.json({ success: true });
+  }
+);
+
+// Edit item price in order
+app.post(
+  "/admin/orders/:orderId/items/:itemIndex/price",
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    const newPrice = Number(req.body.unitPrice);
+    if (isNaN(newPrice) || newPrice <= 0) {
+      return res.status(400).json({ error: "Invalid price" });
+    }
+
+    const order = await Order.findById(req.params.orderId);
+    if (!order) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    const itemIndex = Number(req.params.itemIndex);
+    if (itemIndex < 0 || itemIndex >= order.items.length) {
+      return res.status(400).json({ error: "Invalid item index" });
+    }
+
+    const item = order.items[itemIndex];
+    item.unitPrice = newPrice;
+    item.subtotal = newPrice * item.quantity;
+
+    let newTotal = 0;
+    for (const it of order.items) {
+      newTotal += it.subtotal;
+    }
+    order.total = newTotal;
+
+    await order.save();
+    res.json({ success: true, newPrice, newSubtotal: item.subtotal, newTotal });
+  }
+);
+
+// Mark individual item as completed
+app.post(
+  "/admin/orders/:orderId/items/:itemIndex/complete",
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    const order = await Order.findById(req.params.orderId);
+    if (!order) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    const itemIndex = Number(req.params.itemIndex);
+    if (itemIndex < 0 || itemIndex >= order.items.length) {
+      return res.status(400).json({ error: "Invalid item index" });
+    }
+
+    order.items[itemIndex].itemStatus = "completed";
+
+    const allCompleted = order.items.every((item) => item.itemStatus === "completed");
+    const someCompleted = order.items.some((item) => item.itemStatus === "completed");
+
+    if (allCompleted) {
+      order.status = "completed";
+    } else if (someCompleted) {
+      order.status = "process";
+    }
+
+    await order.save();
+    res.json({ success: true });
+  }
+);
+
+// Mark individual item as pending
+app.post(
+  "/admin/orders/:orderId/items/:itemIndex/pending",
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    const order = await Order.findById(req.params.orderId);
+    if (!order) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    const itemIndex = Number(req.params.itemIndex);
+    if (itemIndex < 0 || itemIndex >= order.items.length) {
+      return res.status(400).json({ error: "Invalid item index" });
+    }
+
+    order.items[itemIndex].itemStatus = "pending";
+    order.status = "pending";
+
+    await order.save();
+    res.json({ success: true });
+  }
+);
+
+// Start processing order (change status from pending to process)
+app.post(
+  "/admin/orders/:id/start-process",
+  requireAuth,
+  requireAdmin,
+  async (req, res) => {
+    const order = await Order.findById(req.params.id);
+    if (!order) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    if (order.status !== "pending") {
+      return res.status(400).json({ error: "Order is not pending" });
+    }
+
+    order.status = "process";
+    await order.save();
+    res.json({ success: true });
   }
 );
 

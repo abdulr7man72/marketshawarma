@@ -42,6 +42,7 @@
           <a href="/admin?tab=products" class="rounded-xl px-4 py-3 text-sm font-semibold <%= tab === 'products' ? 'bg-brand-500 text-white' : 'bg-orange-50 text-zinc-700 hover:bg-orange-100' %>">Products</a>
           <a href="/admin?tab=invoices" class="rounded-xl px-4 py-3 text-sm font-semibold <%= tab === 'invoices' ? 'bg-brand-500 text-white' : 'bg-orange-50 text-zinc-700 hover:bg-orange-100' %>">Invoices</a>
           <a href="/admin?tab=pending" class="rounded-xl px-4 py-3 text-sm font-semibold <%= tab === 'pending' ? 'bg-brand-500 text-white' : 'bg-orange-50 text-zinc-700 hover:bg-orange-100' %>">Pending Orders</a>
+          <a href="/admin?tab=process" class="rounded-xl px-4 py-3 text-sm font-semibold <%= tab === 'process' ? 'bg-brand-500 text-white' : 'bg-orange-50 text-zinc-700 hover:bg-orange-100' %>">Processing Orders</a>
         </div>
       </nav>
 
@@ -161,20 +162,100 @@
       <% if (tab === 'pending') { %>
       <section class="rounded-2xl border border-orange-100 bg-white p-5 shadow-sm md:p-6">
         <h2 class="text-xl font-bold">Pending Orders</h2>
-        <div class="mt-4 grid gap-3 md:grid-cols-2">
-          <% if (pendingOrders.length === 0) { %>
+        <div class="mt-4 space-y-4">
+          <% const pendingOnly = pendingOrders.filter(o => o.status === 'pending'); %>
+          <% if (pendingOnly.length === 0) { %>
           <p class="text-zinc-500">No pending orders.</p>
           <% } %>
-          <% pendingOrders.forEach((order) => { %>
-          <article class="rounded-xl border border-orange-100 bg-orange-50/40 p-4">
-            <p class="font-semibold"><%= order.customerName %></p>
-            <p class="text-sm text-zinc-600">Invoice: <%= order.invoiceNumber %></p>
-            <p class="mt-1 text-sm">Total: <span class="font-bold"><%= formatRP(order.total) %></span></p>
-            <div class="mt-3 flex flex-wrap gap-2">
-              <form method="post" action="/admin/orders/<%= order._id %>/complete">
-                <button class="rounded-lg bg-emerald-600 px-4 py-3 text-xs font-bold text-white">Mark Completed</button>
-              </form>
-              <a href="/invoices/<%= order.invoiceNumber %>" class="rounded-lg border border-orange-200 bg-white px-4 py-3 text-xs font-bold text-brand-600">View Invoice</a>
+          <% pendingOnly.forEach((order) => { %>
+          <article class="rounded-xl border border-amber-200 bg-amber-50/40 p-4">
+            <div class="mb-3 flex items-center justify-between">
+              <p class="text-lg font-bold"><%= order.customerName %></p>
+              <span class="rounded-lg bg-amber-100 px-3 py-1 text-sm font-bold text-amber-700">⏳ Pending</span>
+            </div>
+            <p class="mb-3 text-sm text-zinc-600">Invoice: <span class="font-semibold text-brand-600"><%= order.invoiceNumber %></span> | Total: <span class="font-bold"><%= formatRP(order.total) %></span></p>
+            <div class="flex gap-2">
+              <button type="button" class="start-process-btn rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700" data-order-id="<%= order._id %>">Start Processing →</button>
+              <a href="/invoices/<%= order.invoiceNumber %>" class="rounded-lg border border-orange-200 bg-white px-4 py-2 text-sm font-semibold text-brand-600 hover:bg-orange-50">View Invoice</a>
+            </div>
+          </article>
+          <% }) %>
+        </div>
+      </section>
+      <% } %>
+
+      <% if (tab === 'process') { %>
+      <section class="rounded-2xl border border-orange-100 bg-white p-5 shadow-sm md:p-6">
+        <h2 class="text-xl font-bold">Processing Orders - Edit & Manage</h2>
+        <div class="mt-4 space-y-4">
+          <% const processOrders = pendingOrders.filter(o => o.status === 'process'); %>
+          <% if (processOrders.length === 0) { %>
+          <p class="text-zinc-500">No orders in processing. Go to Pending Orders and click "Start Processing" to begin.</p>
+          <% } %>
+          <% processOrders.forEach((order) => { %>
+          <article class="rounded-xl border border-blue-200 bg-blue-50/40 p-4">
+            <div class="mb-4 border-b border-blue-100 pb-3">
+              <p class="text-lg font-bold"><%= order.customerName %></p>
+              <div class="mt-1 flex flex-wrap items-center gap-4 text-sm">
+                <span class="font-semibold text-brand-600">Invoice: <%= order.invoiceNumber %></span>
+                <span class="rounded-lg bg-blue-100 px-3 py-1 font-bold text-blue-700">⚙️ Processing</span>
+              </div>
+            </div>
+
+            <div class="overflow-auto rounded-lg border border-blue-100">
+              <table class="w-full text-sm">
+                <thead class="bg-blue-50">
+                  <tr>
+                    <th class="p-2 text-left">Product</th>
+                    <th class="p-2 text-left">Price</th>
+                    <th class="p-2 text-left">Qty</th>
+                    <th class="p-2 text-left">Subtotal</th>
+                    <th class="p-2 text-left">Status</th>
+                    <th class="p-2 text-left">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% order.items.forEach((item, idx) => { %>
+                  <tr class="border-t border-blue-100">
+                    <td class="p-2 font-semibold"><%= item.name %></td>
+                    <td class="p-2">
+                      <span class="item-price-<%= order._id %>-<%= idx %>"><%= formatRP(item.unitPrice) %></span>
+                    </td>
+                    <td class="p-2">
+                      <span class="item-qty-<%= order._id %>-<%= idx %>"><%= item.quantity %></span>
+                    </td>
+                    <td class="p-2 font-semibold">
+                      <span class="item-subtotal-<%= order._id %>-<%= idx %>"><%= formatRP(item.subtotal) %></span>
+                    </td>
+                    <td class="p-2">
+                      <span class="item-status-<%= order._id %>-<%= idx %> rounded-lg px-2 py-1 text-xs font-bold <%= item.itemStatus === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700' %>">
+                        <%= item.itemStatus === 'completed' ? '✓ Done' : '⏳ Pending' %>
+                      </span>
+                    </td>
+                    <td class="p-2">
+                      <div class="flex flex-wrap gap-1">
+                        <button type="button" class="edit-price-btn rounded bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-700 hover:bg-blue-200" data-order="<%= order._id %>" data-index="<%= idx %>" data-current-price="<%= item.unitPrice %>" title="Edit Price">💰</button>
+                        <button type="button" class="edit-qty-btn rounded bg-cyan-100 px-2 py-1 text-xs font-semibold text-cyan-700 hover:bg-cyan-200" data-order="<%= order._id %>" data-index="<%= idx %>" data-current-qty="<%= item.quantity %>" title="Edit Quantity">📦</button>
+                        <% if (item.itemStatus === 'pending') { %>
+                        <button type="button" class="complete-item-btn rounded bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-200" data-order="<%= order._id %>" data-index="<%= idx %>" title="Mark Completed">✓</button>
+                        <% } else { %>
+                        <button type="button" class="revert-item-btn rounded bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-200" data-order="<%= order._id %>" data-index="<%= idx %>" title="Revert to Pending">↺</button>
+                        <% } %>
+                        <button type="button" class="delete-item-btn rounded bg-red-100 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-200" data-order="<%= order._id %>" data-index="<%= idx %>" title="Delete Product">🗑️</button>
+                      </div>
+                    </td>
+                  </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="mt-4 flex items-center justify-between">
+              <p class="text-lg font-bold">Total: <span class="text-brand-600 order-total-<%= order._id %>"><%= formatRP(order.total) %></span></p>
+              <div class="flex gap-2">
+                <button type="button" class="mark-completed-btn rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700" data-order="<%= order._id %>">✓ Mark All Completed</button>
+                <a href="/admin?tab=pending" class="rounded-lg border border-orange-200 bg-white px-4 py-2 text-sm font-semibold text-brand-600 hover:bg-orange-50">← Back</a>
+              </div>
             </div>
           </article>
           <% }) %>
@@ -182,5 +263,235 @@
       </section>
       <% } %>
     </main>
+
+    <script>
+      const formatRP = (n) => `RP ${Number(n || 0).toLocaleString('en-US')}`;
+
+      // Start processing order
+      document.querySelectorAll('.start-process-btn').forEach((button) => {
+        button.addEventListener('click', () => {
+          const orderId = button.dataset.orderId;
+          
+          if (!confirm('Start processing this order?')) return;
+          
+          fetch(`/admin/orders/${orderId}/start-process`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+          })
+          .then(res => {
+            if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+            return res.json();
+          })
+          .then(data => {
+            if (data.success) {
+              window.location.href = '/admin?tab=process';
+            } else {
+              alert('Error: ' + (data.error || 'Unknown error'));
+            }
+          })
+          .catch(err => {
+            console.error('Fetch error:', err);
+            alert('Error starting process: ' + err.message);
+          });
+        });
+      });
+
+      // Edit item price
+      document.querySelectorAll('.edit-price-btn').forEach((button) => {
+        button.addEventListener('click', () => {
+          const orderId = button.dataset.order;
+          const itemIndex = button.dataset.index;
+          const currentPrice = button.dataset.currentPrice;
+          
+          const newPrice = prompt(`Enter new unit price (current: ${formatRP(currentPrice)}):`, currentPrice);
+          if (newPrice === null || newPrice === '') return;
+          
+          const price = Number(newPrice);
+          if (isNaN(price) || price <= 0) {
+            alert('Invalid price. Please enter a valid number.');
+            return;
+          }
+          
+          fetch(`/admin/orders/${orderId}/items/${itemIndex}/price`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ unitPrice: price })
+          })
+          .then(res => {
+            if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+            return res.json();
+          })
+          .then(data => {
+            if (data.success) {
+              document.querySelector(`.item-price-${orderId}-${itemIndex}`).textContent = formatRP(data.newPrice);
+              document.querySelector(`.item-subtotal-${orderId}-${itemIndex}`).textContent = formatRP(data.newSubtotal);
+              document.querySelector(`.order-total-${orderId}`).textContent = formatRP(data.newTotal);
+              alert('Price updated successfully!');
+            } else {
+              alert('Error: ' + (data.error || 'Unknown error'));
+            }
+          })
+          .catch(err => {
+            console.error('Fetch error:', err);
+            alert('Error updating price: ' + err.message);
+          });
+        });
+      });
+
+      // Edit item quantity
+      document.querySelectorAll('.edit-qty-btn').forEach((button) => {
+        button.addEventListener('click', () => {
+          const orderId = button.dataset.order;
+          const itemIndex = button.dataset.index;
+          const currentQty = button.dataset.currentQty;
+          
+          const newQty = prompt(`Enter new quantity (current: ${currentQty}):`, currentQty);
+          if (newQty === null || newQty === '') return;
+          
+          const qty = Number(newQty);
+          if (isNaN(qty) || qty <= 0) {
+            alert('Invalid quantity. Please enter a valid number.');
+            return;
+          }
+          
+          fetch(`/admin/orders/${orderId}/items/${itemIndex}/quantity`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ quantity: qty })
+          })
+          .then(res => {
+            if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+            return res.json();
+          })
+          .then(data => {
+            if (data.success) {
+              document.querySelector(`.item-qty-${orderId}-${itemIndex}`).textContent = data.newQuantity;
+              document.querySelector(`.item-subtotal-${orderId}-${itemIndex}`).textContent = formatRP(data.newSubtotal);
+              document.querySelector(`.order-total-${orderId}`).textContent = formatRP(data.newTotal);
+              alert('Quantity updated successfully!');
+            } else {
+              alert('Error: ' + (data.error || 'Unknown error'));
+            }
+          })
+          .catch(err => {
+            console.error('Fetch error:', err);
+            alert('Error updating quantity: ' + err.message);
+          });
+        });
+      });
+
+      // Complete individual item
+      document.querySelectorAll('.complete-item-btn').forEach((button) => {
+        button.addEventListener('click', () => {
+          const orderId = button.dataset.order;
+          const itemIndex = button.dataset.index;
+          
+          fetch(`/admin/orders/${orderId}/items/${itemIndex}/complete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+          })
+          .then(res => {
+            if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+            return res.json();
+          })
+          .then(data => {
+            if (data.success) {
+              location.reload();
+            } else {
+              alert('Error: ' + (data.error || 'Unknown error'));
+            }
+          })
+          .catch(err => {
+            console.error('Fetch error:', err);
+            alert('Error completing item: ' + err.message);
+          });
+        });
+      });
+
+      // Revert item to pending
+      document.querySelectorAll('.revert-item-btn').forEach((button) => {
+        button.addEventListener('click', () => {
+          const orderId = button.dataset.order;
+          const itemIndex = button.dataset.index;
+          
+          fetch(`/admin/orders/${orderId}/items/${itemIndex}/pending`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+          })
+          .then(res => {
+            if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+            return res.json();
+          })
+          .then(data => {
+            if (data.success) {
+              location.reload();
+            } else {
+              alert('Error: ' + (data.error || 'Unknown error'));
+            }
+          })
+          .catch(err => {
+            console.error('Fetch error:', err);
+            alert('Error reverting item: ' + err.message);
+          });
+        });
+      });
+
+      // Delete item from order
+      document.querySelectorAll('.delete-item-btn').forEach((button) => {
+        button.addEventListener('click', () => {
+          if (!confirm('Are you sure you want to delete this product?')) return;
+          
+          const orderId = button.dataset.order;
+          const itemIndex = button.dataset.index;
+          
+          fetch(`/admin/orders/${orderId}/items/${itemIndex}/delete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+          })
+          .then(res => {
+            if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+            return res.json();
+          })
+          .then(data => {
+            if (data.success) {
+              location.reload();
+            } else {
+              alert('Error: ' + (data.error || 'Unknown error'));
+            }
+          })
+          .catch(err => {
+            console.error('Fetch error:', err);
+            alert('Error deleting item: ' + err.message);
+          });
+        });
+      });
+
+      // Mark all items as completed
+      document.querySelectorAll('.mark-completed-btn').forEach((button) => {
+        button.addEventListener('click', () => {
+          const orderId = button.dataset.order;
+          
+          fetch(`/admin/orders/${orderId}/complete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+          })
+          .then(res => {
+            if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+            return res.json();
+          })
+          .then(data => {
+            if (data.success) {
+              location.reload();
+            } else {
+              alert('Error: ' + (data.error || 'Unknown error'));
+            }
+          })
+          .catch(err => {
+            console.error('Fetch error:', err);
+            alert('Error marking order as completed: ' + err.message);
+          });
+        });
+      });
+    </script>
   </body>
 </html>

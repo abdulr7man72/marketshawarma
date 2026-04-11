@@ -7,6 +7,7 @@ const orderItemSchema = new mongoose.Schema(
     unitPrice: { type: Number, required: true, min: 1 },
     quantity: { type: Number, required: true, min: 1 },
     subtotal: { type: Number, required: true, min: 1 },
+    itemStatus: { type: String, enum: ["pending", "completed"], default: "pending" },
   },
   { _id: false }
 );
@@ -18,7 +19,7 @@ const orderSchema = new mongoose.Schema(
     total: { type: Number, required: true, min: 1 },
     status: {
       type: String,
-      enum: ["pending", "completed"],
+      enum: ["pending", "process", "completed"],
       default: "pending",
     },
     invoiceNumber: { type: String, required: true, unique: true },
