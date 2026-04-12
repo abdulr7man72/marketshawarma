@@ -52,9 +52,14 @@
           <h2 class="text-xl font-bold">Add Product</h2>
           <form method="post" action="/admin/products" class="mt-4 space-y-3">
             <input name="name" type="text" placeholder="Product name" class="w-full rounded-xl border border-orange-200 px-4 py-3 text-base" required />
+            <input name="category" type="text" placeholder="Category (e.g., Vegetables, Sauces)" class="w-full rounded-xl border border-orange-200 px-4 py-3 text-base" />
             <input name="price" type="number" min="1" placeholder="Price" class="w-full rounded-xl border border-orange-200 px-4 py-3 text-base" required />
             <input name="quantity" type="number" min="0" placeholder="Quantity (units in stock)" class="w-full rounded-xl border border-orange-200 px-4 py-3 text-base" required />
             <input name="image" type="url" placeholder="Image URL (optional)" class="w-full rounded-xl border border-orange-200 px-4 py-3 text-base" />
+            <label class="flex items-center gap-2 rounded-xl border border-orange-100 bg-orange-50/60 px-4 py-3 text-sm">
+              <input name="isEditable" type="checkbox" class="h-4 w-4" />
+              <span class="font-semibold text-zinc-700">Allow users to edit this product</span>
+            </label>
             <button class="w-full rounded-xl bg-brand-500 px-4 py-3 text-base font-bold text-white hover:bg-brand-600">Save Product</button>
           </form>
         </article>
@@ -104,9 +109,14 @@
             <img src="<%= p.image || '/default-product.svg' %>" alt="<%= p.name %>" class="h-40 w-full rounded-lg object-cover" />
             <form method="post" action="/admin/products/<%= p._id %>/update" class="mt-3 space-y-2">
               <input name="name" value="<%= p.name %>" type="text" class="w-full rounded-lg border border-orange-200 bg-white px-3 py-2" required />
+              <input name="category" value="<%= p.category || 'General' %>" type="text" placeholder="Category" class="w-full rounded-lg border border-orange-200 bg-white px-3 py-2" />
               <input name="price" value="<%= p.price %>" type="number" min="1" class="w-full rounded-lg border border-orange-200 bg-white px-3 py-2" required />
               <input name="quantity" value="<%= p.quantity || 0 %>" type="number" min="0" class="w-full rounded-lg border border-orange-200 bg-white px-3 py-2" required />
               <input name="image" value="<%= p.image %>" type="url" placeholder="Image URL (optional)" class="w-full rounded-lg border border-orange-200 bg-white px-3 py-2" />
+              <label class="flex items-center gap-2 rounded-lg border border-orange-200 bg-white px-3 py-3">
+                <input type="checkbox" name="isEditable" <%= p.isEditable ? 'checked' : '' %> class="h-4 w-4 rounded" />
+                <span class="text-sm font-semibold text-zinc-700">Allow users to edit this product</span>
+              </label>
               <button class="w-full rounded-lg bg-brand-500 px-3 py-3 text-sm font-bold text-white hover:bg-brand-600">Update Product</button>
             </form>
             <form method="post" action="/admin/products/<%= p._id %>/delete" class="mt-2" onsubmit="return confirm('Delete this product?')">

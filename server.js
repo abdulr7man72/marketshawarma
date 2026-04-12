@@ -30,6 +30,10 @@ app.use(
 
 function requireAuth(req, res, next) {
   if (!req.session.user) {
+    // For API requests, return JSON instead of redirecting
+    if (req.path.startsWith('/api/')) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
     return res.redirect("/login");
   }
   next();
@@ -48,8 +52,12 @@ app.get("/", requireAuth, async (req, res) => {
     .sort({ createdAt: -1 })
     .lean();
 
+  // Get unique categories from products
+  const categories = [...new Set(products.map(p => p.category || "General"))];
+
   res.render("home", {
     products,
+    categories,
     userOrders,
     user: req.session.user,
     error: null,
@@ -166,8 +174,18 @@ app.get("/invoices-orders", requireAuth, async (req, res) => {
 
   // Calculate products sales summary
   const productSales = new Map();
+  const purchasedProductsWithDate = [];
   orders.forEach((order) => {
+    // Get the order date - it should be a Date object from Mongoose
+    const orderDate = order.createdAt || new Date();
+    // Format the date as MM/DD/YYYY for display
+    const formattedDate = new Date(orderDate).toLocaleDateString('en-US');
+    
     order.items.forEach((item) => {
+      purchasedProductsWithDate.push({
+        ...item,
+        purchaseDate: formattedDate,  // Pass as formatted string
+      });
       if (!productSales.has(item.productId.toString())) {
         productSales.set(item.productId.toString(), {
           productId: item.productId,
@@ -188,6 +206,7 @@ app.get("/invoices-orders", requireAuth, async (req, res) => {
     user: req.session.user,
     orders,
     products,
+    purchasedProducts: purchasedProductsWithDate,
     summary,
     filters: {
       q,
@@ -241,14 +260,23 @@ app.post("/orders", requireAuth, async (req, res) => {
     return res.redirect("/");
   }
 
-  const productIds = items.map((item) => item.productId);
-  const products = await Product.find({ _id: { $in: productIds } }).lean();
-  const productMap = new Map(products.map((p) => [String(p._id), p]));
+  // Separate manual products from regular products
+  const manualItems = items.filter((item) => String(item.productId).startsWith("manual-"));
+  const regularItems = items.filter((item) => !String(item.productId).startsWith("manual-"));
+  
+  // Get regular products from database
+  let productMap = new Map();
+  if (regularItems.length > 0) {
+    const productIds = regularItems.map((item) => item.productId);
+    const products = await Product.find({ _id: { $in: productIds } }).lean();
+    productMap = new Map(products.map((p) => [String(p._id), p]));
+  }
 
   const orderItems = [];
   let total = 0;
 
-  for (const item of items) {
+  // Process regular products
+  for (const item of regularItems) {
     const product = productMap.get(item.productId);
     const qty = Number(item.quantity) || 0;
     if (!product || qty <= 0) {
@@ -263,6 +291,27 @@ app.post("/orders", requireAuth, async (req, res) => {
       itemStatus: "pending",
     });
     total += product.price * qty;
+  }
+
+  // Process manual products
+  for (const item of manualItems) {
+    const qty = Number(item.quantity) || 0;
+    const price = Number(item.price) || 0;
+    const name = (item.name || "").trim();
+    
+    if(!name || qty <= 0 || price <= 0) {
+      continue;
+    }
+    
+    orderItems.push({
+      productId: null,  // Manual products don't have a database ID
+      name: name,
+      unitPrice: price,
+      quantity: qty,
+      subtotal: price * qty,
+      itemStatus: "pending",
+    });
+    total += price * qty;
   }
 
   if (orderItems.length === 0) {
@@ -281,6 +330,21 @@ app.post("/orders", requireAuth, async (req, res) => {
 
   req.session.success = `Order placed successfully. Invoice: ${invoiceNumber}`;
   res.redirect("/");
+});
+
+// Get user's orders
+app.get("/api/my-orders", requireAuth, async (req, res) => {
+  try {
+    const user = req.session.user;
+    if (!user || !user.name) {
+      return res.status(401).json({ error: "User not authenticated" });
+    }
+    const orders = await Order.find({ customerName: user.name }).sort({ createdAt: -1 }).lean();
+    res.json(orders || []);
+  } catch (error) {
+    console.error("Error fetching orders:", error);
+    res.status(500).json({ error: "Failed to load orders", message: error.message });
+  }
 });
 
 app.get("/admin", requireAuth, requireAdmin, async (req, res) => {
@@ -326,8 +390,10 @@ app.get("/admin", requireAuth, requireAdmin, async (req, res) => {
 app.post("/admin/products", requireAuth, requireAdmin, async (req, res) => {
   const name = (req.body.name || "").trim();
   const image = (req.body.image || "").trim();
+  const category = (req.body.category || "General").trim();
   const price = Number(req.body.price);
   const quantity = Number(req.body.quantity) || 0;
+  const isEditable = req.body.isEditable === "on" || req.body.isEditable === true;
 
   if (!name || !price || price <= 0) {
     return res.status(400).send("Invalid product data.");
@@ -338,6 +404,8 @@ app.post("/admin/products", requireAuth, requireAdmin, async (req, res) => {
     price,
     quantity,
     image,
+    category,
+    isEditable,
   });
 
   res.redirect("/admin?tab=forms");
@@ -350,8 +418,10 @@ app.post(
   async (req, res) => {
     const name = (req.body.name || "").trim();
     const image = (req.body.image || "").trim();
+    const category = (req.body.category || "General").trim();
     const price = Number(req.body.price);
     const quantity = Number(req.body.quantity) || 0;
+    const isEditable = req.body.isEditable === "on" || req.body.isEditable === true;
 
     if (!name || !price || price <= 0) {
       return res.status(400).send("Invalid product data.");
@@ -362,6 +432,8 @@ app.post(
       image,
       price,
       quantity,
+      category,
+      isEditable,
     });
     res.redirect("/admin?tab=products");
   }
@@ -442,6 +514,90 @@ app.post(
 
     await order.save();
     res.json({ success: true, newQuantity, newSubtotal: item.subtotal, newTotal });
+  }
+);
+
+// Edit item quantity in order (user can edit their own orders)
+app.post(
+  "/api/orders/:orderId/items/:itemIndex/quantity",
+  requireAuth,
+  async (req, res) => {
+    const newQuantity = Number(req.body.quantity);
+    if (isNaN(newQuantity) || newQuantity <= 0) {
+      return res.status(400).json({ error: "Invalid quantity" });
+    }
+
+    const order = await Order.findById(req.params.orderId);
+    if (!order) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    // Check if user owns this order or is admin
+    const user = req.session.user;
+    const customer = await Customer.findById(user.id);
+    if (order.customerName !== user.name && !customer.isAdmin) {
+      return res.status(403).json({ error: "You don't have permission to edit this order" });
+    }
+
+    const itemIndex = Number(req.params.itemIndex);
+    if (itemIndex < 0 || itemIndex >= order.items.length) {
+      return res.status(400).json({ error: "Invalid item index" });
+    }
+
+    const item = order.items[itemIndex];
+    item.quantity = newQuantity;
+    item.subtotal = item.unitPrice * newQuantity;
+
+    let newTotal = 0;
+    for (const it of order.items) {
+      newTotal += it.subtotal;
+    }
+    order.total = newTotal;
+
+    await order.save();
+    res.json({ success: true, newQuantity, newSubtotal: item.subtotal, newTotal });
+  }
+);
+
+// Edit item price in order (user can edit their own orders)
+app.post(
+  "/api/orders/:orderId/items/:itemIndex/price",
+  requireAuth,
+  async (req, res) => {
+    const newPrice = Number(req.body.price);
+    if (isNaN(newPrice) || newPrice <= 0) {
+      return res.status(400).json({ error: "Invalid price" });
+    }
+
+    const order = await Order.findById(req.params.orderId);
+    if (!order) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    // Check if user owns this order or is admin
+    const user = req.session.user;
+    const customer = await Customer.findById(user.id);
+    if (order.customerName !== user.name && !customer.isAdmin) {
+      return res.status(403).json({ error: "You don't have permission to edit this order" });
+    }
+
+    const itemIndex = Number(req.params.itemIndex);
+    if (itemIndex < 0 || itemIndex >= order.items.length) {
+      return res.status(400).json({ error: "Invalid item index" });
+    }
+
+    const item = order.items[itemIndex];
+    item.unitPrice = newPrice;
+    item.subtotal = item.unitPrice * item.quantity;
+
+    let newTotal = 0;
+    for (const it of order.items) {
+      newTotal += it.subtotal;
+    }
+    order.total = newTotal;
+
+    await order.save();
+    res.json({ success: true, newPrice, newSubtotal: item.subtotal, newTotal });
   }
 );
 
